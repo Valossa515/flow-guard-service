@@ -44,4 +44,9 @@ public class RateLimitRuleRedisRepository {
     private String buildKey(String clientId, String endpoint, String method) {
         return "rate-limit:rule:" + clientId + ":" + endpoint + ":" + method;
     }
+
+    public void delete(String clientId, String endpoint, String method) {
+        String key = "rate-limit:rule:" + clientId + ":" + endpoint + ":" + method;
+        redisTemplate.delete(key);
+    }
 }
