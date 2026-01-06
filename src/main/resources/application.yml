@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: ms-emppj-seller-data
+    springdoc:
+      api-docs:
+        enabled: true
+        path: /v3/api-docs
+      swagger-ui:
+        enabled: true
+        path: /swagger-ui.html
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  rate-limit:
+    default-rule:
+      limit: 100
+      window-seconds: 60
+
+
+
