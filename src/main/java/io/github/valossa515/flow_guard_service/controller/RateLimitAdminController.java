@@ -3,12 +3,13 @@ package io.github.valossa515.flow_guard_service.controller;
 import io.github.valossa515.flow_guard_service.dto.CreateRateLimitRuleRequest;
 import io.github.valossa515.flow_guard_service.dto.RateLimitRuleResponse;
 import io.github.valossa515.flow_guard_service.service.RateLimitAdminService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/rules")
+@RequestMapping("/api/v1/rules")
 public class RateLimitAdminController {
 
     private final RateLimitAdminService service;
@@ -18,7 +19,7 @@ public class RateLimitAdminController {
     }
 
     @PostMapping
-    public ResponseEntity<Void> create(@RequestBody CreateRateLimitRuleRequest request) {
+    public ResponseEntity<Void> create(@Valid @RequestBody CreateRateLimitRuleRequest request) {
         service.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }

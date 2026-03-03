@@ -1,21 +1,29 @@
 spring:
   application:
-    name: ms-emppj-seller-data
-    springdoc:
-      api-docs:
-        enabled: true
-        path: /v3/api-docs
-      swagger-ui:
-        enabled: true
-        path: /swagger-ui.html
+    name: flow-guard-service
   data:
     redis:
       host: localhost
       port: 6379
-  rate-limit:
-    default-rule:
-      limit: 100
-      window-seconds: 60
 
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
 
+rate-limit:
+  default-rule:
+    limit: 100
+    window-seconds: 60
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
