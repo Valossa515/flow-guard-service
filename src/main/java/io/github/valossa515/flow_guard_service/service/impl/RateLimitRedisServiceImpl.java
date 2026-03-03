@@ -7,6 +7,8 @@ import io.github.valossa515.flow_guard_service.dto.RateLimitResponseDTO;
 import io.github.valossa515.flow_guard_service.dto.RateLimitRule;
 import io.github.valossa515.flow_guard_service.service.RateLimitRuleResolver;
 import io.github.valossa515.flow_guard_service.service.RateLimitService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -22,6 +24,8 @@ public class RateLimitRedisServiceImpl implements RateLimitService {
 
     private final StringRedisTemplate redisTemplate;
     private final RateLimitRuleResolver ruleResolver;
+    private final Counter checksCounter;
+    private final Counter blockedCounter;
 
     private static final String RATE_LIMIT_LUA_SCRIPT =
             "local count = redis.call('INCR', KEYS[1]) " +
@@ -34,17 +38,27 @@ public class RateLimitRedisServiceImpl implements RateLimitService {
     private final DefaultRedisScript<List> rateLimitScript;
 
     public RateLimitRedisServiceImpl(StringRedisTemplate redisTemplate,
-                                     RateLimitRuleResolver ruleResolver) {
+                                     RateLimitRuleResolver ruleResolver,
+                                     MeterRegistry meterRegistry) {
         this.redisTemplate = redisTemplate;
         this.ruleResolver = ruleResolver;
 
         this.rateLimitScript = new DefaultRedisScript<>();
         this.rateLimitScript.setScriptText(RATE_LIMIT_LUA_SCRIPT);
         this.rateLimitScript.setResultType(List.class);
+
+        this.checksCounter = Counter.builder("rate_limit.checks")
+                .description("Total rate limit checks performed")
+                .register(meterRegistry);
+        this.blockedCounter = Counter.builder("rate_limit.blocked")
+                .description("Total requests blocked by rate limiting")
+                .register(meterRegistry);
     }
 
     @Override
     public RateLimitResponseDTO checkRateLimit(RateLimitRequestDTO request) {
+        checksCounter.increment();
+
         RateLimitRule rule = ruleResolver.resolve(request);
         String key = RedisKeyConstants.buildCounterKey(
                 request.getClientId(), request.getEndpoint(), request.getHttpMethod());
@@ -64,6 +78,8 @@ public class RateLimitRedisServiceImpl implements RateLimitService {
         }
 
         if (count > rule.getLimit()) {
+            blockedCounter.increment();
+
             log.info("Rate limit exceeded: clientId={}, endpoint={}, method={}, count={}, limit={}",
                     request.getClientId(), request.getEndpoint(), request.getHttpMethod(),
                     count, rule.getLimit());

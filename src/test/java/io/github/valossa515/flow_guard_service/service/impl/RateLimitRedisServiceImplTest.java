@@ -5,6 +5,7 @@ import io.github.valossa515.flow_guard_service.dto.RateLimitRequestDTO;
 import io.github.valossa515.flow_guard_service.dto.RateLimitResponseDTO;
 import io.github.valossa515.flow_guard_service.dto.RateLimitRule;
 import io.github.valossa515.flow_guard_service.service.RateLimitRuleResolver;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,10 +31,12 @@ class RateLimitRedisServiceImplTest {
     private RateLimitRuleResolver ruleResolver;
 
     private RateLimitRedisServiceImpl service;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
-        service = new RateLimitRedisServiceImpl(redisTemplate, ruleResolver);
+        meterRegistry = new SimpleMeterRegistry();
+        service = new RateLimitRedisServiceImpl(redisTemplate, ruleResolver, meterRegistry);
     }
 
     private RateLimitRequestDTO buildRequest() {
@@ -124,5 +127,36 @@ class RateLimitRedisServiceImplTest {
 
         assertThat(response.isAllowed()).isTrue();
         assertThat(response.getRemainingRequests()).isEqualTo(0);
+    }
+
+    @Test
+    void shouldIncrementChecksMetric() {
+        RateLimitRequestDTO request = buildRequest();
+        RateLimitRule rule = buildRule(10, 60);
+
+        when(ruleResolver.resolve(request)).thenReturn(rule);
+        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList(), any()))
+                .thenReturn(List.of(1L, 60L));
+
+        service.checkRateLimit(request);
+        service.checkRateLimit(request);
+
+        double count = meterRegistry.counter("rate_limit.checks").count();
+        assertThat(count).isEqualTo(2.0);
+    }
+
+    @Test
+    void shouldIncrementBlockedMetricWhenExceeded() {
+        RateLimitRequestDTO request = buildRequest();
+        RateLimitRule rule = buildRule(1, 60);
+
+        when(ruleResolver.resolve(request)).thenReturn(rule);
+        when(redisTemplate.execute(any(DefaultRedisScript.class), anyList(), any()))
+                .thenReturn(List.of(2L, 55L));
+
+        service.checkRateLimit(request);
+
+        double blocked = meterRegistry.counter("rate_limit.blocked").count();
+        assertThat(blocked).isEqualTo(1.0);
     }
 }

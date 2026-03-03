@@ -1,0 +1,15 @@
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+logging:
+  level:
+    root: INFO
+    io.github.valossa515.flow_guard_service: DEBUG
+
+management:
+  endpoint:
+    health:
+      show-details: always
