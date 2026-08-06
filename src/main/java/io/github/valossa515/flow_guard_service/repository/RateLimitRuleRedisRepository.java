@@ -1,14 +1,21 @@
 package io.github.valossa515.flow_guard_service.repository;
 
 import io.github.valossa515.flow_guard_service.dto.RateLimitRule;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @Repository
 public class RateLimitRuleRedisRepository {
+
+    private static final String RULE_KEY_PREFIX = "rate-limit:rule:";
+
     private final StringRedisTemplate redisTemplate;
 
     public RateLimitRuleRedisRepository(StringRedisTemplate redisTemplate) {
@@ -41,12 +48,53 @@ public class RateLimitRuleRedisRepository {
         return Optional.of(rule);
     }
 
+    public List<RateLimitRule> findAll() {
+        List<String> keys = new ArrayList<>();
+
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(RULE_KEY_PREFIX + "*")
+                .count(100)
+                .build();
+
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            cursor.forEachRemaining(keys::add);
+        }
+
+        List<RateLimitRule> rules = new ArrayList<>();
+        for (String key : keys) {
+            parseKey(key).ifPresent(rule ->
+                    find(rule.getClientId(), rule.getEndpoint(), rule.getHttpMethod())
+                            .ifPresent(rules::add));
+        }
+        return rules;
+    }
+
+    /**
+     * Chave no formato rate-limit:rule:{clientId}:{endpoint}:{method}.
+     * O clientId não contém ':' e o método é sempre o último segmento,
+     * então o endpoint fica entre o primeiro e o último ':' do restante.
+     */
+    private Optional<RateLimitRule> parseKey(String key) {
+        String raw = key.substring(RULE_KEY_PREFIX.length());
+
+        int firstColon = raw.indexOf(':');
+        int lastColon = raw.lastIndexOf(':');
+        if (firstColon < 0 || lastColon <= firstColon) {
+            return Optional.empty();
+        }
+
+        RateLimitRule rule = new RateLimitRule();
+        rule.setClientId(raw.substring(0, firstColon));
+        rule.setEndpoint(raw.substring(firstColon + 1, lastColon));
+        rule.setHttpMethod(raw.substring(lastColon + 1));
+        return Optional.of(rule);
+    }
+
     private String buildKey(String clientId, String endpoint, String method) {
-        return "rate-limit:rule:" + clientId + ":" + endpoint + ":" + method;
+        return RULE_KEY_PREFIX + clientId + ":" + endpoint + ":" + method;
     }
 
     public void delete(String clientId, String endpoint, String method) {
-        String key = "rate-limit:rule:" + clientId + ":" + endpoint + ":" + method;
-        redisTemplate.delete(key);
+        redisTemplate.delete(buildKey(clientId, endpoint, method));
     }
 }

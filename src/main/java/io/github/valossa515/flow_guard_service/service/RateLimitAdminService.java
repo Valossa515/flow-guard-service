@@ -5,6 +5,7 @@ import io.github.valossa515.flow_guard_service.dto.RateLimitRule;
 import io.github.valossa515.flow_guard_service.repository.RateLimitRuleRedisRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -30,6 +31,10 @@ public class RateLimitAdminService {
 
     public Optional<RateLimitRule> get(String clientId, String endpoint, String method) {
         return repository.find(clientId, endpoint, method);
+    }
+
+    public List<RateLimitRule> getAll() {
+        return repository.findAll();
     }
 
     public void delete(String clientId, String endpoint, String method) {
